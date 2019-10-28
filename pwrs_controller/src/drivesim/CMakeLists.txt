@@ -1,0 +1,10 @@
+add_executable(drivesim
+               main.cpp)
+target_link_libraries(drivesim ${catkin_LIBRARIES})
+
+install(TARGETS
+  drivesim
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)

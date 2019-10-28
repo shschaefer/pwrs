@@ -1,0 +1,10 @@
+add_executable(wiggler
+               main.cpp)
+target_link_libraries(wiggler ${catkin_LIBRARIES})
+
+install(TARGETS
+  wiggler
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
