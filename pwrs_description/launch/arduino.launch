@@ -32,13 +32,15 @@ SOFTWARE.
     <param name="~baud" value="57600" /> <!-- TODO: Test 115200 -->
 	<!-- SpongeBot node parameters -->
 	<!-- TODO: Move to a yaml config file -->
+	<param name="spongebot/calibrate" type="int" value="0" />
 	<param name="spongebot/wheelbase" type="double" value="0.4318" />
 	<param name="spongebot/tread" type="double" value="0.0" />
 	<param name="spongebot/velocitySlope" type="double" value="1.3683" />
-	<param name="spongebot/steeringRatio" type="double" value="0.0019635" /> <!-- rad/step -->
-	<param name="spongebot/steeringOffset" type="double" value="-0.62832" />
-	<param name="spongebot/steeringSlope" type="double" value="3.141592" /> <!-- rad/sec -->
+	<!-- Default for a HITEC HS-785HB is 1050-1950 usec full travel -->
+	<param name="spongebot/steeringOffset" type="double" value="1500" /> <!-- usec of the middle point -->
+	<param name="spongebot/steeringSlope" type="double" value="1145.915829" /> <!-- usec/rad -->
+	<param name="spongebot/steeringTravel" type="double" value="0.785398" /> <!-- radians -->
 	<param name="spongebot/yawDeclinationAdjust" type="double" value="-0.276286" />
   </node>
-  
+
 </launch>

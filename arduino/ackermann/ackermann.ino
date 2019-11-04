@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-// #define USE_USBCON - THIS IS NECESSARY FOR LEONARDO
+
 #include <ros.h>
 #include <ros/time.h>
 #include <ackermann_msgs/AckermannDrive.h>
@@ -71,17 +71,18 @@ ros::Publisher imuPublisher("inertial", &inertial);
 //
 ServoSteering *steering;
 const byte servoPin = 11;
+float steeringAnglePhi = 0;
 
 MotorController *motorController;
 int motorPin = 13; // Leonardo doesn't support PWM on pin 12, but LED is 13!!!
 
 #define NUM_SONARS 3
 SonarRanging *ranger;
-const byte sonar1Pin = A13;
-const byte sonar2Pin = A14;
-const byte sonar3Pin = A15;
-const byte sonarPowerPin = 51;
-const byte sonarEnablePin = 53;
+const byte sonar1Pin = A3;
+const byte sonar2Pin = A4;
+const byte sonar3Pin = A5;
+const byte sonarPowerPin = 6;
+const byte sonarEnablePin = 5;
 
 const byte buttonPin = 12;
 
@@ -102,7 +103,7 @@ float robotWheelbase = 0;
 // Local variables
 //
 bool connected = false;
-bool calibrationMode = false;
+int calibrationMode = false;
 ros::Time lastTime;
 char baseLink[] = "/base_link";
 char odomLink[] = "/odom";
@@ -306,16 +307,18 @@ void setup()
   // Initialize calibration parameters
   float steeringOffset = 0;
   float steeringSlope = 0;
+  float steeringTravel = 0;
   float velocitySlope = 0;
   nh.getParam("/spongebot/calibrate", &calibrationMode);
   nh.getParam("/spongebot/wheelbase", &robotWheelbase);
   nh.getParam("/spongebot/velocitySlope", &velocitySlope);
   nh.getParam("/spongebot/steeringOffset", &steeringOffset);
   nh.getParam("/spongebot/steeringSlope", &steeringSlope);
+  nh.getParam("/spongebot/steeringTravel", &steeringTravel);
 
   motorController = new MotorController(motorPin, velocitySlope);
 
-  steering = new ServoSteering(&rosLog, servoPin, steeringOffset, steeringSlope);
+  steering = new ServoSteering(&rosLog, servoPin, steeringSlope, steeringOffset, steeringTravel);
 
   if (!calibrationMode)
   {
@@ -358,3 +361,8 @@ void loop()
   if (!calibrationMode)
     reportSensors();
 }
+
+// Events from the IMU??
+//void serialEvent2(){
+//
+//}

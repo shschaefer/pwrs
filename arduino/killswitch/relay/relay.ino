@@ -45,15 +45,27 @@ RH_RF69 rf69;
 #define YELLOW 'Y'
 #define GREEN 'G'
 #define DISCONNECTED 'D'
+#define UNINITIALIZED 'I'
 
-char systemState;
+char systemState = UNINITIALIZED;
+
+#define DEBUG_PROTOCOL 0
+
+void debugProtocol(char *logMessage)
+{
+#if DEBUG_PROTOCOL == 1
+  Serial.println(logMessage);
+#endif
+}
 
 void setup()
 {
   wdt_reset(); //Pet the dog
   wdt_disable(); //We don't want the watchdog during init
 
+#if DEBUG_PROTOCOL == 1
   Serial.begin(115200);
+#endif
 
   pinMode(RELAY_CONTROL, OUTPUT);
   turnOffRelay(); //During power up turn off power
@@ -66,10 +78,15 @@ void setup()
   digitalWrite(PAUSE_PIN, LOW); //Resume
 
   if (!rf69.init())
-    Serial.println("init failed");
+  {
+    debugProtocol("init failed");
+  }
+
   // Defaults after init are 434.0MHz, modulation GFSK_Rb250Fd250, +13dbM
   if (!rf69.setFrequency(915.0))
-    Serial.println("setFrequency failed");
+  {
+    debugProtocol("setFrequency failed");
+  }
 
   // If you are using a high power RF69, you *must* set a Tx power in the range 14 to 20 like this:
   rf69.setTxPower(20);
@@ -86,7 +103,7 @@ void setup()
   digitalWrite(LED_GRN, HIGH);
   turnOffRelay();
 
-  Serial.println("Power Wheels Kill Switch Online");
+  debugProtocol("Power Wheels Kill Switch Online");
 
   wdt_reset(); //Pet the dog
 //  wdt_enable(WDTO_1S); //Unleash the beast
@@ -104,7 +121,7 @@ void loop()
       turnOffRelay();
       systemState = DISCONNECTED;
 
-      Serial.println("Remote failed to check in! Turn off relay!");
+      debugProtocol("Remote failed to check in! Turn off relay!");
     }
   }
 
@@ -117,8 +134,8 @@ void loop()
     {
       sendResponse(); //Respond back to the remote that we heard it loud and clear
 
-      Serial.print("Received: ");
-      Serial.println((char*)buf);
+      debugProtocol("Received: ");
+      debugProtocol((char*)buf);
 
       if (buf[0] == RED || buf[0] == YELLOW || buf[0] == GREEN || buf[0] == DISCONNECTED) lastCheckin = millis(); //Reset timeout
 
@@ -130,7 +147,7 @@ void loop()
           turnOffRelay();
           systemState = RED;
 
-          Serial.println("Kill!");
+          debugProtocol("Kill!");
         }
       }
       else if (buf[0] == YELLOW)
@@ -141,7 +158,7 @@ void loop()
           digitalWrite(PAUSE_PIN, HIGH);
           systemState = YELLOW;
 
-          Serial.println("Pause!");
+          debugProtocol("Pause!");
         }
       }
       else if (buf[0] == GREEN)
@@ -153,7 +170,7 @@ void loop()
           turnOnRelay();
           systemState = GREEN;
 
-          Serial.println("Go!");
+          debugProtocol("Go!");
         }
       }
       else if (buf[0] == DISCONNECTED)
@@ -164,11 +181,13 @@ void loop()
         turnOffRelay();
         systemState = DISCONNECTED; //Remote will move the state from disconnected
 
-        Serial.println("Reconnecting!");
+        debugProtocol("Reconnecting!");
       }
 
+#if DEBUG_PROTOCOL == 1
       Serial.print("RSSI: ");
       Serial.println(rf69.lastRssi(), DEC);
+#endif
     }
   }
 }
@@ -180,7 +199,7 @@ void sendResponse()
   rf69.send(response, sizeof(response));
   rf69.waitPacketSent(50); //Block for 50ms before moving on
 
-  Serial.println("Sent a reply");
+  debugProtocol("Sent a reply");
 }
 
 //Turns on a given LED
@@ -204,4 +223,3 @@ void turnOffRelay()
 {
   digitalWrite(RELAY_CONTROL, LOW);
 }
-

@@ -46,7 +46,7 @@ void MotorController::SetMotorSpeed(float speed, float acceleration, float jerk)
   rwd.writeMicroseconds(PWMvalue);
 }
 
-float MotorController::GetMotorSpeed()
+float MotorController::GetCurrentSpeed()
 {
   return currentSpeed;	
 }

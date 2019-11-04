@@ -22,23 +22,28 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifndef _MOTOR_CONTROLLER_H
-#define _MOTOR_CONTROLLER_H
+#ifndef _SERVO_STEERING_H
+#define _SERVO_STEERING_H
 
 #include <Arduino.h>
 #include <Servo.h>
 
-class MotorController
+class ServoSteering
 {
   public:
-    MotorController(byte motorPin, float slope);
-    void SetMotorSpeed(float speed, float acceleration, float jerk);
-    float GetCurrentSpeed();
+    ServoSteering(void (*logFunction)(String), int servoPin,
+        float slope, int calibrationOffset, float degreesMaxTravel);
+    void Steer(float steeringAngle, float steeringVelocity);
+    float GetCurrentAngle();
 	
   private:
-    Servo rwd;
-    float velocitySlope;
-    float currentSpeed;
+    Servo *servo;
+
+    float steeringAnglePhi = 0;
+    float maxSteeringAngle = 0, minSteeringAngle = 0;
+    float steeringSlope = 0;
+    float offset = 0;
+    void (*logFunc)(String);
 };
 
-#endif // _MOTOR_CONTROLLER_H
+#endif // _STEPPER_STEERING_H
