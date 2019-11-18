@@ -29,6 +29,11 @@ SOFTWARE.
 
 #define FILTER_SAMPLES 3
 
+// From the sensor manual -> LV-MaxSonar-EZ
+#define SONAR_FIELD_OF_VIEW 0.1
+#define SONAR_MIN_RANGE 0.1524
+#define SONAR_MAX_RANGE 6.47
+
 class SonarRanging
 {
   public:

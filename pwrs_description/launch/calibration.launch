@@ -52,6 +52,7 @@ SOFTWARE.
     <param name="speed" value="0.3" /> <!-- meters/sec --> 
     <param name="tolerance" value="0.01" /> <!-- meters -->
     <param name="test_variant" value="SPEED_ODOMETRY" />
+    <param name="wheelbase" value="0.4318" />
   </node>
   
 </launch>

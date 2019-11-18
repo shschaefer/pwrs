@@ -97,7 +97,7 @@ void MPU9250::getCurrentYawPitchRoll(float *yaw, float *pitch, float *roll)
 
 void MPU9250::getCurrentOrientation(float *quaternion)
 {
-  float *q = getQ();
+  const float *q = getQ();
   
   quaternion[0] = q[0]*yawAdjust[0] - q[1]*yawAdjust[1] - q[2]*yawAdjust[2] - q[3]*yawAdjust[3];
   quaternion[1] = q[0]*yawAdjust[1] + q[1]*yawAdjust[0] + q[2]*yawAdjust[3] - q[3]*yawAdjust[2];

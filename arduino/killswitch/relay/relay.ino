@@ -19,28 +19,33 @@
 */
 
 #include <SPI.h>
-#include <RH_RF69.h> //From: http://www.airspayce.com/mikem/arduino/RadioHead/s
-#include <SimpleTimer.h> //https://github.com/jfturcot/SimpleTimer
-#include <avr/wdt.h> //We need watch dog for this program
+#include <RH_RF69.h>     // From: http://www.airspayce.com/mikem/arduino/RadioHead/s
+#include <SimpleTimer.h> // https://github.com/jfturcot/SimpleTimer
+#include <avr/wdt.h>     // We need watch dog for this program
 
-//If we don't get ok after this number of milliseconds then go into safety-shutdown
-//This must be longer than MAX_DELIVERY_FAILURES * CHECKIN_PERIOD
-//250ms is good
-//L defines the value as a long. Needed for millisecond times larger than int (+32,767) but doesn't hurt to have.
-#define MAX_TIME_WITHOUT_OK 2000L
+// If we don't get ok after this number of milliseconds then go into safety-shutdown
+// This must be longer than MAX_DELIVERY_FAILURES * CHECKIN_PERIOD
+// 250ms is good
+// L defines the value as a long. Needed for millisecond times larger than int (+32,767) but doesn't hurt to have.
+#define MAX_TIME_WITHOUT_OK 1000L
+
+// Number of milliseconds to block for sending packets and waiting for the radio to receive repsonse packets
+// 10ms is good. 
+#define BLOCKING_WAIT_TIME 50L
 
 unsigned long lastCheckin = 0;
 
 RH_RF69 rf69;
 
-#define RELAY_CONTROL 9
-#define PAUSE_PIN 8
+#define RELAY_CONTROL 7
+#define PAUSE_PIN 9
 
 #define LED_RED 3
 #define LED_YLW 4
 #define LED_GRN 5
+#define LED_GND 6
 
-//Define the various system states
+// Define the various system states
 #define RED 'R'
 #define YELLOW 'Y'
 #define GREEN 'G'
@@ -49,9 +54,9 @@ RH_RF69 rf69;
 
 char systemState = UNINITIALIZED;
 
-#define DEBUG_PROTOCOL 0
+#define DEBUG_PROTOCOL 1
 
-void debugProtocol(char *logMessage)
+void debugProtocol(String logMessage)
 {
 #if DEBUG_PROTOCOL == 1
   Serial.println(logMessage);
@@ -60,8 +65,8 @@ void debugProtocol(char *logMessage)
 
 void setup()
 {
-  wdt_reset(); //Pet the dog
-  wdt_disable(); //We don't want the watchdog during init
+  wdt_reset();   // Pet the dog
+  wdt_disable(); // We don't want the watchdog during init
 
 #if DEBUG_PROTOCOL == 1
   Serial.begin(115200);
@@ -73,6 +78,7 @@ void setup()
   pinMode(LED_RED, OUTPUT);
   pinMode(LED_YLW, OUTPUT);
   pinMode(LED_GRN, OUTPUT);
+  pinMode(LED_GND, OUTPUT);
 
   pinMode(PAUSE_PIN, OUTPUT);
   digitalWrite(PAUSE_PIN, LOW); //Resume
@@ -91,26 +97,41 @@ void setup()
   // If you are using a high power RF69, you *must* set a Tx power in the range 14 to 20 like this:
   rf69.setTxPower(20);
 
-  //This key is the same on the remote. Pick your own random sequence.
+  // Set the address of the transceiver and its encryption key
+  rf69.setThisAddress( 0xBA );
+  rf69.setHeaderFrom( 0xBA );
   uint8_t key[] = { 0xFB, 0x10, 0xAE, 0x39, 0xF8, 0xFF, 0xA6, 0xFC,
-                    0x7A, 0x33, 0xC6, 0xC0, 0x2D, 0x2D, 0x2D, 0xD2
-                  };
+                    0x7A, 0x33, 0xC6, 0xC0, 0x2D, 0x2D, 0x2D, 0xD2 };
   rf69.setEncryptionKey(key);
 
+  // Set the address of the remote and to only accept connections from it
+  rf69.setHeaderTo( 0xAB );
+  rf69.setPromiscuous(false);
+  
   systemState = DISCONNECTED; //On power up start disconnected
   digitalWrite(LED_RED, HIGH);
   digitalWrite(LED_YLW, HIGH);
   digitalWrite(LED_GRN, HIGH);
+  digitalWrite(LED_GND, LOW);
   turnOffRelay();
 
-  debugProtocol("Power Wheels Kill Switch Online");
+  // Watchdog timers introduce an early race condition. When setting the watchdog to short periods,
+  // a reset is likely to happen while trying to upload a new sketch.  This then requires some
+  // trickery, like uploading a tiny sketch first before re-uploading this one.
+  // Longer periods are good for testing, but not for preventing crashes.
+  // One potential solution is to just delay here until we think potential for upload has passed.
+  delay(5000);
 
-  wdt_reset(); //Pet the dog
-//  wdt_enable(WDTO_1S); //Unleash the beast
+  debugProtocol("Power Wheels Kill Switch Online");
+  
+  wdt_enable(WDTO_1S); // Unleash the beast
+  wdt_reset();         // Pet the dog
 }
 
 void loop()
 {
+  wdt_reset(); // Pet the dog
+    
   if (millis() - lastCheckin > MAX_TIME_WITHOUT_OK)
   {
     if (systemState != DISCONNECTED)
@@ -132,7 +153,7 @@ void loop()
 
     if (rf69.recv(buf, &len))
     {
-      sendResponse(); //Respond back to the remote that we heard it loud and clear
+      sendResponse(); // Respond back to the remote that we heard it loud and clear
 
       debugProtocol("Received: ");
       debugProtocol((char*)buf);
@@ -175,11 +196,11 @@ void loop()
       }
       else if (buf[0] == DISCONNECTED)
       {
-        //If we've received a 'D' from the remote it means
-        //it is trying to get back in touch
-        setLED(LED_RED); //Turn on LED
+        // If we've received a 'D' from the remote it means
+        // it is trying to get back in touch
+        setLED(LED_RED); // Turn on LED
         turnOffRelay();
-        systemState = DISCONNECTED; //Remote will move the state from disconnected
+        systemState = DISCONNECTED; // Remote will move the state from disconnected
 
         debugProtocol("Reconnecting!");
       }
@@ -192,17 +213,17 @@ void loop()
   }
 }
 
-//If we receive a system state we send a response
+// If we receive a system state we send a response
 void sendResponse()
 {
-  uint8_t response[] = "O"; //Send OK
+  uint8_t response[] = "OK"; // Send OK
   rf69.send(response, sizeof(response));
-  rf69.waitPacketSent(50); //Block for 50ms before moving on
+  rf69.waitPacketSent(BLOCKING_WAIT_TIME); // Wait for a bit of time
 
   debugProtocol("Sent a reply");
 }
 
-//Turns on a given LED
+// Turns on a given LED
 void setLED(byte LEDnumber)
 {
   digitalWrite(LED_RED, LOW);
@@ -212,13 +233,13 @@ void setLED(byte LEDnumber)
   digitalWrite(LEDnumber, HIGH);
 }
 
-//Turn on the relay
+// Turn on the relay
 void turnOnRelay()
 {
   digitalWrite(RELAY_CONTROL, HIGH);
 }
 
-//Turn off the relay
+// Turn off the relay
 void turnOffRelay()
 {
   digitalWrite(RELAY_CONTROL, LOW);

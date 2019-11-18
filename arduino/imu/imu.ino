@@ -27,7 +27,7 @@ SOFTWARE.
 
 #include "MPU9250.h"
 
-#define TESTING_MODE 1
+#define TESTING_MODE 0
 
 // Main IMU definitions
 int imuInterruptPin = 2;
@@ -38,6 +38,7 @@ MPU9250 myIMU;
 // Simplified, Firmata-ish protocol
 #define CALIBRATE         0xA0
 #define DATA_REQUEST      0xB0
+#define RESPONSE_END      0xFF
 #define MAX_DATA_BYTES 4
 byte commandData[MAX_DATA_BYTES];
 typedef union {
@@ -70,19 +71,20 @@ void setup()
   // Set up the interrupt pin, its set as active high, push-pull
   pinMode(imuInterruptPin, INPUT);
   digitalWrite(imuInterruptPin, LOW);
+
+  // Read the WHO_AM_I register, this is a good test of communication
 #if TESTING_MODE == 1
   pinMode(myLed, OUTPUT);
   digitalWrite(myLed, HIGH);
-
-  // Read the WHO_AM_I register, this is a good test of communication
+  
   byte c = myIMU.getDeviceID();
   Serial.print("MPU9250 "); Serial.print("I AM "); Serial.print(c, HEX);
   Serial.print(" I should be "); Serial.println(0x71, HEX);
-#endif
-
+#else
   // When the IMU does not respond, go into listening mode
   // As our state is not initialized, we will return failures to all commands
   if (!myIMU.testConnection()) return;
+#endif
 
 #if TESTING_MODE == 1
   // Start by performing self test and reporting values
@@ -108,7 +110,7 @@ void setup()
   Serial.println("accel biases (mg)"); Serial.println(1000.*accelBias[0]); Serial.println(1000.*accelBias[1]); Serial.println(1000.*accelBias[2]);
   Serial.println("gyro biases (dps)"); Serial.println(gyroBias[0]); Serial.println(gyroBias[1]); Serial.println(gyroBias[2]);
 #else
-  // TODO: Load calibration from host configuration, not reinitialize
+  // TODO: Load calibration from host configuration, not reinitialize???
   myIMU.calibrateGyroAndAccel(NULL,  NULL);
 #endif
   
@@ -192,6 +194,7 @@ void serialEvent()
         // Send the initialization state
         Serial.write(CALIBRATE);
         Serial.write(initialized);
+        Serial.write(RESPONSE_END);
         waiting = 0;
       }
       else
@@ -212,6 +215,7 @@ void serialEvent()
       writeFloat(myIMU.gx);
       writeFloat(myIMU.gy);
       writeFloat(myIMU.gz);
+      Serial.write(RESPONSE_END);
       command = 0;
       return;
 

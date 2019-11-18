@@ -64,7 +64,10 @@ void SonarRanging::Range()
 float SonarRanging::GetDistance(int sensorNumber)
 {
   // Filter the samples
-  if (sensorNumber > sonars) return 0.0;
+  if (sensorNumber >= sonars) return 0.0;
   
-  return (sonarSamples[sensorNumber - 1][0] / 2.0f) * 2.54f;
+  float rangeCm = (sonarSamples[sensorNumber][0] / 2.0f) * 2.54f;
+
+  // Return distance in meters
+  return rangeCm / 100.0f;
 }

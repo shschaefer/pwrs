@@ -41,8 +41,10 @@ rest, as you will need to be able to utilize odometry.
  
 """
 
+import math
 import rospy
 from geometry_msgs.msg import Point
+from ackermann_msgs.msg import AckermannDrive
 import tf
 
 class CalibrateLoop():
@@ -51,14 +53,14 @@ class CalibrateLoop():
         rospy.on_shutdown(self.shutdown)
         
         # Set our update rate
-        self.rate = 10
-        r = rospy.Rate(self.rate)
+        self.rate = rospy.Rate(10)
         
         # Set the base test parameters
         self.test_distance = rospy.get_param('~test_distance', 1.0) # meters
         self.speed = rospy.get_param('~speed', 0.15) # meters per second
         self.tolerance = rospy.get_param('~tolerance', 0.01) # meters
         self.test_variant = rospy.get_param('~test_variant', "SPEED_CURVE")
+        self.wheelbase = rospy.get_param('~wheelbase', 0.4318)
 
         # Publish Ackerman drive messages to manually control the robot
         self.cmd_ack = rospy.Publisher('/cmd_ack', AckermannDrive, queue_size=5)
@@ -78,33 +80,29 @@ class CalibrateLoop():
         # Get the starting position from the tf transform between the odom and base frames
         self.position = Point()        
         self.position = self.get_position()
-        x_start = self.position.x
-        y_start = self.position.y
+        self.x_start = self.position.x
+        self.y_start = self.position.y
 		
-        case self.test_variant:
-            switch "SPEED_ODOMETRY":
-                move_forward_leg(self.speed, self.test_distance, self.rate)
-
-            switch "STEERING_ANGLE":
+        if self.test_variant == "SPEED_ODOMETRY":
+                self.move_forward_leg(self.speed, self.test_distance, self.rate)
+        elif self.test_variant ==  "STEERING_ANGLE":
                 # Circumscribe a circle of known radius three times
-		        rotate_leg(self.speed, self.test_distance / 2, 6 * pi, self.rate)
-
-            switch "LINEAR_CONTROL":
-                move_forward_controlled(self.speed, self.test_distance, self.rate)
-			    
-            switch "CAL_LOOP":
+		        self.rotate_leg(self.speed, self.test_distance / 2, 6 * math.pi, self.rate)
+        elif self.test_variant == "LINEAR_CONTROL":
+                self.move_forward_controlled(self.speed, self.test_distance, self.rate)
+        elif self.test_variant == "CAL_LOOP":
                 # Four stages in the open loop - out, turn, back, turn
-                move_forward_controlled(self.speed, self.test_distance, self.rate)
-		        rotate_leg(self.speed, self.test_distance / 2, pi, self.rate)
-		        move_forward_controlled(self.speed, self.test_distance, self.rate)
-		        rotate_leg(self.speed, self.test_distance / 2, pi, self.rate)
+                self.move_forward_leg(self.speed, self.test_distance, self.rate)
+                self.rotate_leg(self.speed, self.test_distance / 2, math.pi, self.rate)
+                self.move_forward_leg(self.speed, self.test_distance, self.rate)
+                self.rotate_leg(self.speed, self.test_distance / 2, math.pi, self.rate)
 
         # Robot may already be stopped
-		shutdown()
-		self.position = self.get_position()
-        rospy.loginfo("TF Position: {0} {1}", self.position.x - x_start, self.position.y - y_start)
+        self.shutdown()
+        self.position = self.get_position()
+        rospy.loginfo("TF Position: {0} {1}", self.position.x - self.x_start, self.position.y - self.y_start)
 
-    def rotate_leg(speed, radius, arc, update_rate):
+    def rotate_leg(self, speed, radius, arc, update_rate):
         # Initialize the movement command
         move_cmd = AckermannDrive()
 
@@ -114,23 +112,23 @@ class CalibrateLoop():
 		
 		# Set the steering angle - Need to derive from CLMR Kinematics
         # TODO: Check to see that it is within the geometric limits of the robot
-        angle = math.atan(wheelbase / radius)
-		move_cmd.steering_angle = angle
+        angle = math.atan(self.wheelbase / radius)
+        move_cmd.steering_angle = angle
         
         # Move forward for a time to go the desired distance
-		distance = arc * radius
+        distance = arc * radius
         duration = distance / speed
         ticks = int(duration * update_rate)
 
         for t in range(ticks):
             self.cmd_ack.publish(move_cmd)
-            r.sleep()
+            self.rate.sleep()
             
         # Stop the robot before the next leg
-        self.cmd_ack.publish(AckermanDrive())
+        self.cmd_ack.publish(AckermannDrive())
         rospy.sleep(1)
         
-    def move_forward_leg(speed, distance, update_rate):
+    def move_forward_leg(self, speed, distance, update_rate):
         # Initialize the movement command
         move_cmd = AckermannDrive()
             
@@ -144,13 +142,13 @@ class CalibrateLoop():
 
         for t in range(ticks):
             self.cmd_ack.publish(move_cmd)
-            r.sleep()
+            self.rate.sleep()
             
         # Stop the robot before the next leg
-        self.cmd_ack.publish(AckermanDrive())
+        self.cmd_ack.publish(AckermannDrive())
         rospy.sleep(1)
 
-    def move_forward_controlled(speed, distance, update_rate):
+    def move_forward_controlled(self, speed, distance, update_rate):
         # Initialize the movement command
         move_cmd = AckermannDrive()
             
@@ -160,25 +158,25 @@ class CalibrateLoop():
 		
 		# Continue to move until we get close to the mark
         error = distance
-		while abs(error) > self.tolerance
+        while abs(error) > self.tolerance:
 
             # If we have not achieved our goal, move in the appropriate direction
-            move_cmd.speed = copysign(self.speed, -1 * error)	
-		    self.cmd_ack.publish(move_cmd)
-            r.sleep()
+            move_cmd.speed = math.copysign(self.speed, -1 * error)	
+            self.cmd_ack.publish(move_cmd)
+            self.rate.sleep()
 			
             # Get the current position from the tf transform between the odom and base frames
             self.position = self.get_position()
                 
             # Compute the Euclidean distance from the target point
-            distance_travelled = sqrt(pow((self.position.x - x_start), 2) +
-                                      pow((self.position.y - y_start), 2))
+            distance_travelled = math.sqrt(pow((self.position.x - self.x_start), 2) +
+                                      pow((self.position.y - self.y_start), 2))
                
             # How close are we?
             error =  distance_travelled - distance
                 
         # Stop the robot before the next leg
-        self.cmd_ack.publish(AckermanDrive())
+        self.cmd_ack.publish(AckermannDrive())
         rospy.sleep(1)
         
     def get_position(self):
@@ -194,7 +192,7 @@ class CalibrateLoop():
     def shutdown(self):
         # Always stop the robot when shutting down the node
         rospy.loginfo("Stopping the robot...")
-        self.cmd_ack.publish(AckermanDrive())
+        self.cmd_ack.publish(AckermannDrive())
         rospy.sleep(1)
  
 if __name__ == '__main__':

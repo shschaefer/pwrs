@@ -76,6 +76,8 @@ float steeringAnglePhi = 0;
 MotorController *motorController;
 int motorPin = 13; // Leonardo doesn't support PWM on pin 12, but LED is 13!!!
 
+const byte buttonPin = 12;
+
 #define NUM_SONARS 3
 SonarRanging *ranger;
 const byte sonar1Pin = A3;
@@ -84,11 +86,10 @@ const byte sonar3Pin = A5;
 const byte sonarPowerPin = 6;
 const byte sonarEnablePin = 5;
 
-const byte buttonPin = 12;
-
 // Simplified, Firmata-ish protocol with the IMU
 #define CALIBRATE         0xA0
 #define DATA_REQUEST      0xB0
+#define RESPONSE_END      0xFF
 typedef union {
   float value;
   byte data[4];
@@ -142,13 +143,14 @@ ros::Subscriber<ackermann_msgs::AckermannDrive> moveCommand("cmd_ack", &moveHand
 void ComputeAckermannIncrement(float deltaT, 
 	float *velocityX, float *velocityY, float *velocityTheta)
 {
-  // TODO: Read this from the steering system when it is needed
+  // Get the current control positions
   steeringAnglePhi = steering->GetCurrentAngle();
   float velocity = motorController->GetCurrentSpeed();
 
   // TODO: Fix the incorrect estimate for odometry
   // Currently using the last known steering and velocity setting
   // This is wrong if either is modified within the interval
+  // Small errors also accumulate due to latency to achieve desired setting
   float deltaM = velocity * deltaT;
   float deltaTheta = (deltaM / robotWheelbase) * tan(steeringAnglePhi);
   float deltaX = deltaM * cos(odomTheta + deltaTheta / 2);
@@ -229,6 +231,23 @@ void ReadAndPublishInertialState(ros::Time currentTime)
 
   Serial2.write(DATA_REQUEST);
 
+  // The first byte back should be an echo of the DATA_REQUEST
+  int responseByte = Serial2.read();
+  if (responseByte != DATA_REQUEST)
+  {
+    // TODO: Write a diagnostics message
+    rosLog("Unable to read IMU data.");
+
+    // Read to the end
+    while (Serial2.available())
+    {
+      responseByte = Serial2.read();
+    }
+
+    // TODO: What do we do when the inertial data is no good?
+    return;
+  }
+
   inertial.orientation.x = readImuFloat();
   inertial.orientation.y = readImuFloat();
   inertial.orientation.z = readImuFloat();
@@ -241,6 +260,10 @@ void ReadAndPublishInertialState(ros::Time currentTime)
   inertial.angular_velocity.x = readImuFloat();
   inertial.angular_velocity.y = readImuFloat();
   inertial.angular_velocity.z = readImuFloat();
+
+  // Read the RESPONSE_END byte.
+  // Not sure it matters if we test to make sure it is the right value.
+  responseByte = Serial2.read();
 
   imuPublisher.publish(&inertial);
 }
@@ -279,10 +302,9 @@ void reportSensors()
   // Setup header boilerplate
   range.header.stamp = currentTime;
   range.radiation_type = sensor_msgs::Range::ULTRASOUND;
-  // TODO: Get from the sensor manual
-  range.field_of_view = 0.1;
-  range.min_range = 0.1524;
-  range.max_range = 6.47;
+  range.field_of_view = SONAR_FIELD_OF_VIEW;
+  range.min_range = SONAR_MIN_RANGE;
+  range.max_range = SONAR_MAX_RANGE;
 
   // Report sonar sensor messages
   for(int i=0; i < NUM_SONARS; i++)
@@ -290,7 +312,7 @@ void reportSensors()
       char ident[8];
       sprintf(ident, "/range%d", i + 1);
       range.header.frame_id = ident;
-      range.range = ranger->GetDistance(i) / 100; // distance in meters (from cm)
+      range.range = ranger->GetDistance(i);
       rangePublisher.publish(&range);
 
       nh.spinOnce();
