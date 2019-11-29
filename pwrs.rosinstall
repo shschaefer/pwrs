@@ -1,0 +1,5 @@
+# This is the rosinstall for all repos related to this project.
+- git:
+    local-name: ackermann_msgs
+    uri: https://github.com/ros-drivers/ackermann_msgs
+    version: master

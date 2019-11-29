@@ -25,7 +25,9 @@ SOFTWARE.
 #include "ros/ros.h"
 #include "ackermann_msgs/AckermannDrive.h"
 
+#ifndef _USE_MATH_DEFINES
 #define _USE_MATH_DEFINES // for C
+#endif
 #include <math.h>
 
 int main(int argc, char **argv)
@@ -45,7 +47,7 @@ int main(int argc, char **argv)
   float goal_angle = M_PI / 4.0; // 45 deg
   
   bool turning = false;
-  bool leftOrRight = -1.0;
+  float leftOrRight = -1.0;
   int count = 0;
   while (ros::ok())
   {
@@ -53,14 +55,14 @@ int main(int argc, char **argv)
 	
     if (!turning)
     {
-      move_msg.speed = linearSpeed;
-      move_msg.acceleration = 0.0;
-      move_msg.jerk = 0.0;
+      msg.speed = linearSpeed;
+      msg.acceleration = 0.0;
+      msg.jerk = 0.0;
     }
     else
     {
-      move_msg.steering_angle = leftOrRight * angularSpeed;
-      move_msg.steering_angle_velocity = 1.0;
+      msg.steering_angle = leftOrRight * angularSpeed;
+      msg.steering_angle_velocity = 1.0;
     }
 
     wigglerPublisher.publish(msg);

@@ -25,6 +25,7 @@ SOFTWARE.
 #include "ros/ros.h"
 #include "ackermann_msgs/AckermannDrive.h"
 #include "std_msgs/Empty.h"
+#include <windows.h>
 
 #include <mmsystem.h>
 #define ERR_NODEVICE -1
@@ -83,11 +84,11 @@ int main(int argc, char **argv)
     {
       ackermann_msgs::AckermannDrive msg;
 
-      move_msg.speed = getJoyVelocity(joyInfo.dwXpos);
-      move_msg.acceleration = 0.0;
-      move_msg.jerk = 0.0;
-      move_msg.steering_angle = getJoyVelocity(joyInfo.dwYpos);
-      move_msg.steering_angle_velocity = 1.0;
+      msg.speed = getJoyVelocity(joyInfo.dwXpos);
+      msg.acceleration = 0.0;
+      msg.jerk = 0.0;
+      msg.steering_angle = getJoyVelocity(joyInfo.dwYpos);
+      msg.steering_angle_velocity = 1.0;
 
       joystickPublisher.publish(msg);
     }

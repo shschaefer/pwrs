@@ -1,3 +1,4 @@
+
 /*
 The MIT License (MIT)
 
@@ -39,6 +40,19 @@ SOFTWARE.
 #include <MotorController.h>
 #include <SonarRanging.h>
 #include <stdio.h>
+
+#define ADAFRUIT_10DOF_IMU
+
+#ifdef ADAFRUIT_10DOF_IMU
+#include <Adafruit_Sensor_Set.h>
+#include <Adafruit_Simple_AHRS.h>
+#include <Madgwick.h>
+#include <Mahony.h>
+#include <Adafruit_LSM303_U.h>
+#include <Adafruit_Simple_AHRS.h>
+#include <Adafruit_L3GD20_U.h>
+#else
+#endif
 
 //
 // Compacted all calibration, teleoperation and other modes into
@@ -112,6 +126,33 @@ char imuLink[] = "/imu";
 float odomX = 0;
 float odomY = 0;
 float odomTheta = 0;
+
+#ifdef ADAFRUIT_10DOF_IMU
+Adafruit_LSM303_Accel_Unified accel(30301);
+Adafruit_LSM303_Mag_Unified   mag(30302);
+Adafruit_L3GD20_Unified       gyro(20);
+
+// Create simple AHRS algorithm using the above sensors.
+Adafruit_Simple_AHRS          ahrs(&accel, &mag);
+
+Madgwick filter;
+float mag_offsets[3]            = { 2.45F, -4.55F, -26.93F };
+
+float mag_softiron_matrix[3][3] = { {  0.961,  -0.001,  0.025 },
+                                    {  0.001,  0.886,  0.015 },
+                                    {  0.025,  0.015,  1.176 } };
+
+float mag_field_strength        = 44.12F;
+
+// Offsets applied to compensate for gyro zero-drift error for x/y/z
+// Raw values converted to rad/s based on 250dps sensitiviy (1 lsb = 0.00875 rad/s)
+float rawToDPS = 0.00875F;
+float dpsToRad = 0.017453293F;
+float gyro_zero_offsets[3]      = { 175.0F * rawToDPS * dpsToRad,
+                                   -729.0F * rawToDPS * dpsToRad,
+                                    101.0F * rawToDPS * dpsToRad };
+
+#endif
 
 
 void rosLog(char *logMessage)
@@ -202,11 +243,11 @@ void PublishOdometry(ros::Publisher publisher, ros::Time currentTime,
 
 void PublishJointStates(ros::Publisher publisher, ros::Time currentTime)
 {
-  char *names[] = { "left_steering_mount", "right_steering_mount" };
+  const char *names[] = { "left_steering_mount", "right_steering_mount" };
   float positions[] = { steeringAnglePhi, steeringAnglePhi };
 
   jstate.header.stamp = currentTime;
-  jstate.name = names;
+  jstate.name = const_cast<char**>(names);
   jstate.name_length = 2;
   jstate.position = positions;
   jstate.position_length = 2;
@@ -216,6 +257,7 @@ void PublishJointStates(ros::Publisher publisher, ros::Time currentTime)
   publisher.publish(&jstate);
 }
 
+#ifndef ADAFRUIT_10DOF_IMU
 float readImuFloat()
 {
   // TODO: Make insensitive to lost bytes....
@@ -223,12 +265,62 @@ float readImuFloat()
   for (int i = 0; i<4; i++) fvalue.data[i] = Serial2.read();
   return fvalue.value;
 }
+#endif
 
 void ReadAndPublishInertialState(ros::Time currentTime)
 {
   inertial.header.stamp = currentTime;
   inertial.header.frame_id = imuLink;
 
+#ifdef ADAFRUIT_10DOF_IMU
+
+  sensors_event_t gyro_event;
+  sensors_event_t accel_event;
+  sensors_event_t mag_event;
+
+  gyro.getEvent(&gyro_event);
+  accel.getEvent(&accel_event);
+  mag.getEvent(&mag_event);
+
+  // Apply mag offset compensation (base values in uTesla)
+  float x = mag_event.magnetic.x - mag_offsets[0];
+  float y = mag_event.magnetic.y - mag_offsets[1];
+  float z = mag_event.magnetic.z - mag_offsets[2];
+
+  // Apply mag soft iron error compensation
+  float mx = x * mag_softiron_matrix[0][0] + y * mag_softiron_matrix[0][1] + z * mag_softiron_matrix[0][2];
+  float my = x * mag_softiron_matrix[1][0] + y * mag_softiron_matrix[1][1] + z * mag_softiron_matrix[1][2];
+  float mz = x * mag_softiron_matrix[2][0] + y * mag_softiron_matrix[2][1] + z * mag_softiron_matrix[2][2];
+
+  // Apply gyro zero-rate error compensation
+  float gx = gyro_event.gyro.x - gyro_zero_offsets[0];
+  float gy = gyro_event.gyro.y - gyro_zero_offsets[1];
+  float gz = gyro_event.gyro.z - gyro_zero_offsets[2];
+
+  // The filter library expects gyro data in degrees/s, but adafruit sensor
+  // uses rad/s so we need to convert them first (or adapt the filter lib
+  // where they are being converted)
+  gx *= 57.2958F;
+  gy *= 57.2958F;
+  gz *= 57.2958F;
+
+  // Update the filter
+  filter.update(gx, gy, gz,
+                accel_event.acceleration.x, accel_event.acceleration.y, accel_event.acceleration.z,
+                mx, my, mz);
+
+  float qw, qx, qy, qz;
+  filter.getQuaternion(&inertial.orientation.w, &inertial.orientation.x, &inertial.orientation.y, &inertial.orientation.z);
+
+  inertial.linear_acceleration.x = accel_event.acceleration.x;
+  inertial.linear_acceleration.y = accel_event.acceleration.y;
+  inertial.linear_acceleration.z = accel_event.acceleration.z;
+
+  inertial.angular_velocity.x = gx;
+  inertial.angular_velocity.y = gy;
+  inertial.angular_velocity.z = gz;
+
+#else
   Serial2.write(DATA_REQUEST);
 
   // The first byte back should be an echo of the DATA_REQUEST
@@ -264,6 +356,7 @@ void ReadAndPublishInertialState(ros::Time currentTime)
   // Read the RESPONSE_END byte.
   // Not sure it matters if we test to make sure it is the right value.
   responseByte = Serial2.read();
+  #endif
 
   imuPublisher.publish(&inertial);
 }
@@ -349,8 +442,16 @@ void setup()
     ranger = new SonarRanging(&rosLog, sonarEnablePin, sonarPowerPin, NUM_SONARS, sonarPins);
     ranger->Initialize();
 
+#ifdef ADAFRUIT_10DOF_IMU
+  accel.begin();
+  mag.begin();
+  gyro.begin();
+  filter.begin(25);
+
+#else
     // Initialize the IMU - Serial2 is pin 16/17
     Serial2.begin(115200);
+#endif
   }
 
   // Initialize ROS pubs and subs
