@@ -28,8 +28,8 @@ SOFTWARE.
 <launch>
 
   <node pkg="rosserial_python" type="serial_node.py" name="serial_node" output="screen">
-    <param name="~port" value="COM7" />
-    <param name="~baud" value="57600" /> <!-- TODO: Test 115200 -->
+    <param name="~port" value="COM3" />
+    <param name="~baud" value="115200"/>
 	<!-- SpongeBot node parameters -->
 	<!-- TODO: Move to a yaml config file -->
 	<param name="spongebot/calibrate" type="int" value="0" />

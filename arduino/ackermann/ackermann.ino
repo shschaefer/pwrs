@@ -41,6 +41,8 @@ SOFTWARE.
 #include <SonarRanging.h>
 #include <stdio.h>
 
+#define SPONGE2
+
 #define ADAFRUIT_10DOF_IMU
 
 #ifdef ADAFRUIT_10DOF_IMU
@@ -88,7 +90,12 @@ const byte servoPin = 11;
 float steeringAnglePhi = 0;
 
 MotorController *motorController;
+#ifdef SPONGE2
+int motorPin = 12;
+#else
 int motorPin = 13; // Leonardo doesn't support PWM on pin 12, but LED is 13!!!
+#endif
+
 
 const byte buttonPin = 12;
 
@@ -415,6 +422,7 @@ void reportSensors()
 void setup()
 {
   nh.initNode();
+  nh.getHardware()->setBaud(115200);
 
   // Wired up an input button from the ProtoShield
   pinMode(buttonPin, INPUT);
