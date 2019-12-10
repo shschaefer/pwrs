@@ -1,4 +1,4 @@
-
+  
 /*
 The MIT License (MIT)
 
@@ -41,9 +41,12 @@ SOFTWARE.
 #include <SonarRanging.h>
 #include <stdio.h>
 
-#define SPONGE2
+#define PATRICKBOT
+//#define SPONGEBOT
 
+#ifdef PATRICKBOT
 #define ADAFRUIT_10DOF_IMU
+#endif
 
 #ifdef ADAFRUIT_10DOF_IMU
 #include <Adafruit_Sensor_Set.h>
@@ -124,12 +127,11 @@ float robotWheelbase = 0;
 //
 // Local variables
 //
-bool connected = false;
 int calibrationMode = false;
 ros::Time lastTime;
 char baseLink[] = "/base_link";
-char odomLink[] = "/odom";
-char imuLink[] = "/imu";
+char odomLink[] = "/odom_link";
+char imuLink[] = "/imu_link";
 float odomX = 0;
 float odomY = 0;
 float odomTheta = 0;
@@ -164,7 +166,7 @@ float gyro_zero_offsets[3]      = { 175.0F * rawToDPS * dpsToRad,
 
 void rosLog(char *logMessage)
 {
-  if (!connected)
+  if (!nh.connected())
   {
     Serial.println(*logMessage);
   }
@@ -250,11 +252,11 @@ void PublishOdometry(ros::Publisher publisher, ros::Time currentTime,
 
 void PublishJointStates(ros::Publisher publisher, ros::Time currentTime)
 {
-  const char *names[] = { "left_steering_mount", "right_steering_mount" };
+  char *names[] = { "left_steering_mount", "right_steering_mount" };
   float positions[] = { steeringAnglePhi, steeringAnglePhi };
 
   jstate.header.stamp = currentTime;
-  jstate.name = const_cast<char**>(names);
+  jstate.name = names;
   jstate.name_length = 2;
   jstate.position = positions;
   jstate.position_length = 2;
@@ -281,9 +283,9 @@ void ReadAndPublishInertialState(ros::Time currentTime)
 
 #ifdef ADAFRUIT_10DOF_IMU
 
-  sensors_event_t gyro_event;
-  sensors_event_t accel_event;
-  sensors_event_t mag_event;
+  sensors_event_t gyro_event = {0};
+  sensors_event_t accel_event = {0};
+  sensors_event_t mag_event = {0};
 
   gyro.getEvent(&gyro_event);
   accel.getEvent(&accel_event);
@@ -368,10 +370,8 @@ void ReadAndPublishInertialState(ros::Time currentTime)
   imuPublisher.publish(&inertial);
 }
 
-void reportOdometry()
+void reportOdometry(ros::Time currentTime)
 {
-  ros::Time currentTime = nh.now();
-
   // Compute odometry given the velocities of the robot
   float dt = currentTime.toSec() - lastTime.toSec();
   float vx, vy, vth;
@@ -389,13 +389,8 @@ void reportOdometry()
   nh.spinOnce();
 }
 
-void reportSensors()
+void reportSensors(ros::Time currentTime)
 {
-  ros::Time currentTime = nh.now();
-
-  // TODO: How to feedback state from EKF to update IMU estimates
-  ReadAndPublishInertialState(currentTime);
-
   // Take sonar readings
   ranger->Range();
 
@@ -421,23 +416,63 @@ void reportSensors()
 
 void setup()
 {
-  nh.initNode();
   nh.getHardware()->setBaud(115200);
+  nh.initNode();
+
+    // Initialize ROS pubs and subs
+  tfCaster.init(nh);
+  nh.advertise(logger);
+  nh.advertise(odomPublisher);
+  nh.advertise(steeringPublisher);
+  nh.advertise(imuPublisher);
+  nh.advertise(rangePublisher);
+  nh.subscribe(moveCommand);
+
+  while (!nh.connected())
+  {
+    nh.spinOnce();
+    delay(100);
+  }
+
+  nh.loginfo("Spongebot Getting Parameters 2");
 
   // Wired up an input button from the ProtoShield
   pinMode(buttonPin, INPUT);
+
+  nh.spinOnce();
 
   // Initialize calibration parameters
   float steeringOffset = 0;
   float steeringSlope = 0;
   float steeringTravel = 0;
   float velocitySlope = 0;
-  nh.getParam("/spongebot/calibrate", &calibrationMode);
-  nh.getParam("/spongebot/wheelbase", &robotWheelbase);
-  nh.getParam("/spongebot/velocitySlope", &velocitySlope);
-  nh.getParam("/spongebot/steeringOffset", &steeringOffset);
-  nh.getParam("/spongebot/steeringSlope", &steeringSlope);
-  nh.getParam("/spongebot/steeringTravel", &steeringTravel);
+  if (!nh.getParam("~calibrate", &calibrationMode))
+  {
+    nh.loginfo("Could not get calibrate");
+  }
+  
+  if (!nh.getParam("~wheelbase", &robotWheelbase))
+  {
+    nh.loginfo("Could not get wheelbase");
+  }
+  if (!nh.getParam("~velocitySlope", &velocitySlope))
+  {
+    nh.loginfo("Could not get velocitySlope");
+  }
+  if (!nh.getParam("~steeringOffset", &steeringOffset))
+  {
+    nh.loginfo("Could not get steeringOffset");
+  }
+  if (!nh.getParam("~steeringSlope", &steeringSlope))
+  {
+    nh.loginfo("Could not get steeringSlope");
+  }
+  if (!nh.getParam("~steeringTravel", &steeringTravel))
+  {
+    nh.loginfo("Could not get steeringTravel");
+  }
+  
+  nh.loginfo("Finished Getting Parameters");
 
   motorController = new MotorController(motorPin, velocitySlope);
 
@@ -451,49 +486,64 @@ void setup()
     ranger->Initialize();
 
 #ifdef ADAFRUIT_10DOF_IMU
-  accel.begin();
-  mag.begin();
-  gyro.begin();
-  filter.begin(25);
+    nh.loginfo("Initializing Adafruit IMU");
+    accel.begin();
+    mag.begin();
+    gyro.begin();
+    filter.begin(25);
+    nh.loginfo("Finished initializing Adafruit IMU");
 
 #else
     // Initialize the IMU - Serial2 is pin 16/17
     Serial2.begin(115200);
+    nh.loginfo("Started talking to Serial IMU");
 #endif
   }
 
-  // Initialize ROS pubs and subs
-  tfCaster.init(nh);
-  nh.advertise(logger);
-  nh.advertise(odomPublisher);
-  nh.advertise(steeringPublisher);
-  nh.advertise(imuPublisher);
-  nh.advertise(rangePublisher);
-  nh.subscribe(moveCommand);
-  nh.spinOnce();
-  
-  connected = true;
+  nh.loginfo("Finished Setup");
+
   lastTime = nh.now();
 }
 
+const uint32_t kOdometryPublishFrequency = 5; //hz
+const uint32_t kIMUPublishFrequency = 100; //hz
+const uint32_t kSensorPublishFrequency = 5; //hz
+
+const uint32_t kOdometryPublishMilliDelta = 1000 / kOdometryPublishFrequency; // milliseconds
+const uint32_t kIMUPublishMilliDelta = 1000 / kIMUPublishFrequency; //milliseconds
+const uint32_t kSensorPublishMilliDelta = 1000 / kSensorPublishFrequency; //milliseconds
+
 void loop()
 {
-  // We need a way to effectively spin and delay one cycle - say once per second
-  ros::Time currentTime;
-  do
-  {
-    nh.spinOnce();
-    delay(1);
-    currentTime = nh.now();
-  } while (currentTime.toSec() - lastTime.toSec() < 1.0);
-  
-  reportOdometry();
-  
-  if (!calibrationMode)
-    reportSensors();
-}
+  static uint32_t sOdometryLastPublishMilli = 0;
+  static uint32_t sIMULastPublishMilli = 0;
+  static uint32_t sSensorLastPublishMilli = 0;
 
-// Events from the IMU??
-//void serialEvent2(){
-//
-//}
+  uint32_t milliTime = millis();
+  ros::Time currentROSTime = nh.now();
+  
+
+  if (milliTime - sOdometryLastPublishMilli >= kOdometryPublishMilliDelta)
+  {
+    reportOdometry(currentROSTime);
+    sOdometryLastPublishMilli = milliTime;
+  }
+
+  if (milliTime - sIMULastPublishMilli >= kIMUPublishMilliDelta)
+  {
+    // TODO: How to feedback state from EKF to update IMU estimates
+    ReadAndPublishInertialState(currentROSTime);
+    sIMULastPublishMilli = milliTime;
+  }
+
+  if (milliTime - sSensorLastPublishMilli >= sSensorLastPublishMilli)
+  {
+    if (!calibrationMode)
+    {
+      reportSensors(currentROSTime);
+    }
+    sSensorLastPublishMilli = milliTime;
+  }
+
+  nh.spinOnce();
+}

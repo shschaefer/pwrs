@@ -1,5 +1,4 @@
-<?xml version="1.0"?>
-<!--
+/*
 The MIT License (MIT)
 
 Copyright (c) 2016 
@@ -21,29 +20,44 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
--->
-<package>
-  <name>pwrs_controller</name>
-  <version>0.0.2</version>
-  <description>Power Wheels Racer Controller</description>
+*/
+
+#include "ros/ros.h"
+#include "ackermann_msgs/AckermannDrive.h"
+#include <sensor_msgs/Joy.h>
+
+ros::Publisher g_pub;
+
+float getJoyVelocity(uint32_t dwPos)
+{
+	// Joystick axes are +MAX = 0, -MAX=65535 - Right Handed coordinates
+	float velocity = (32768.0 - (float)dwPos) / 32768.0;
+	return velocity;
+}
+
+void JoyToAckCallback(const sensor_msgs::Joy::ConstPtr& joyMsg)
+{
+  if (joyMsg->axes.size() > 1)
+  {
+    ackermann_msgs::AckermannDrive msg;
+
+    msg.speed = getJoyVelocity(joyMsg->axes[0]);
+    msg.acceleration = 0.0;
+    msg.jerk = 0.0;
+    msg.steering_angle = getJoyVelocity(joyMsg->axes[1]);
+    msg.steering_angle_velocity = 1.0;
+
+    g_pub.publish(msg);
+  }
+}
+
+int main(int argc, char **argv)
+{
+  ros::init(argc, argv, "teleop_ackermann");
   
-  <author>Team SpongeBob</author>
-  <maintainer email="stscha@microsoft.com">Stuart Schaefer</maintainer>
-  <license>MIT</license>
-  <url type="website">http://hackbox</url>
-
-  <buildtool_depend>catkin</buildtool_depend>
-
-  <build_depend>roscpp</build_depend>
-  <build_depend>std_msgs</build_depend>
-  <build_depend>ackermann_msgs</build_depend>
-  <build_depend>sensor_msgs</build_depend>
-  <build_depend>tf</build_depend>
+  ros::NodeHandle nh;
+  g_pub = nh.advertise<ackermann_msgs::AckermannDrive>("cmd_ack", 1); 
+  ros::Subscriber sub = nh.subscribe("/joy", 1, JoyToAckCallback);
   
-  <run_depend>roscpp</run_depend>
-  <run_depend>std_msgs</run_depend>
-  <run_depend>ackermann_msgs</run_depend>
-  <run_depend>sensor_msgs</run_depend>
-  <run_depend>tf</run_depend>
-
-</package>
+  return ros::spin();
+}

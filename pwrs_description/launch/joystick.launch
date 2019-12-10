@@ -25,7 +25,15 @@ SOFTWARE.
 
 <launch>
 
-  <node pkg="pwrs_controller" type="joystick.exe" name="joystick_node" output="screen">
-  </node>
-  
+  <arg name="model" default="$(env BOT_MODEL)" />
+
+  <group if="$(eval $(arg model) == 'PATRICKBOT')">
+    <node pkg="joystick_drivers" type="joy" name="joystick_node" output="screen">
+    </node>
+  </group>
+
+  <group unless="$(eval $(arg model) == 'PATRICKBOT')">
+    <node pkg="pwrs_controller" type="joystick" name="joystick_node" output="screen">
+    </node>
+  </group>
 </launch>

@@ -3,7 +3,7 @@
   <param name="/use_sim_time" value="false" />
 
   <!-- Load the URDF/Xacro model of our robot -->
-  <arg name="urdf_file" default="xacro '$(find pwrs_description)/urdf/spongebot.urdf.xacro'" />
+  <arg name="urdf_file" default="xacro $(find pwrs_description)/urdf/spongebot.urdf.xacro" />
   <arg name="rviz_config" default="$(find pwrs_description)/launch/sim.rviz" />
   <arg name="namespace" default="spongebot"/>
 
@@ -26,7 +26,7 @@
       <param name="publish_frequency" type="double" value="20.0" />
     </node>
 	<!-- Launch our simulated drive odometry source -->
-    <node pkg="pwrs_controller" type="drivesim.exe" name="drivesim_publisher" output="screen">
+    <node pkg="pwrs_controller" type="drivesim" name="drivesim_publisher" output="screen">
     </node>
   <!-- /group -->
   

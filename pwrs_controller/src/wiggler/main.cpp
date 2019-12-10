@@ -32,7 +32,7 @@ SOFTWARE.
 
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "joystick_node");
+  ros::init(argc, argv, "wiggler_node");
   
   ros::NodeHandle wigglerNodeHandle;
   ros::Publisher wigglerPublisher = wigglerNodeHandle.advertise<ackermann_msgs::AckermannDrive>("cmd_ack", 100); 
@@ -79,7 +79,7 @@ int main(int argc, char **argv)
       }
 	
       count = 0;
-      turning != turning;
+      turning = !turning;
     }
   }
 
