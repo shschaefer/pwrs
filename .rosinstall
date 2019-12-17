@@ -1,0 +1,16 @@
+- git:
+    local-name: pwrs
+    uri: https://github.com/ooeygui/pwrs
+    version: master
+
+- git:
+    local-name: ackermann_msgs
+    uri: https://github.com/ros-drivers/ackermann_msgs
+    version: master
+
+- git:
+    local-name: joystick_drivers
+    uri: https://github.com/ooeygui/joystick_drivers
+    version: init_windows
+
+

@@ -28,23 +28,16 @@ SOFTWARE.
 
 ros::Publisher g_pub;
 
-float getJoyVelocity(uint32_t dwPos)
-{
-	// Joystick axes are +MAX = 0, -MAX=65535 - Right Handed coordinates
-	float velocity = (32768.0 - (float)dwPos) / 32768.0;
-	return velocity;
-}
-
 void JoyToAckCallback(const sensor_msgs::Joy::ConstPtr& joyMsg)
 {
   if (joyMsg->axes.size() > 1)
   {
     ackermann_msgs::AckermannDrive msg;
 
-    msg.speed = getJoyVelocity(joyMsg->axes[0]);
+    msg.speed = joyMsg->axes[1];
     msg.acceleration = 0.0;
     msg.jerk = 0.0;
-    msg.steering_angle = getJoyVelocity(joyMsg->axes[1]);
+    msg.steering_angle = joyMsg->axes[0] * 0.585398;  // todo(lamadio): move to param
     msg.steering_angle_velocity = 1.0;
 
     g_pub.publish(msg);

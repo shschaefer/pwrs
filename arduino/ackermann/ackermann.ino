@@ -431,7 +431,7 @@ void setup()
   while (!nh.connected())
   {
     nh.spinOnce();
-    delay(100);
+    delay(1000);
   }
 
   nh.loginfo("Spongebot Getting Parameters 2");
@@ -446,7 +446,7 @@ void setup()
   float steeringSlope = 0;
   float steeringTravel = 0;
   float velocitySlope = 0;
-  if (!nh.getParam("~calibrate", &calibrationMode))
+  if (!nh.getParam("~calibrate", &calibrationMode, 1, 10000))
   {
     nh.loginfo("Could not get calibrate");
   }
