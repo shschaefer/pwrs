@@ -93,14 +93,18 @@ const byte servoPin = 11;
 float steeringAnglePhi = 0;
 
 MotorController *motorController;
-#ifdef SPONGE2
+#ifdef PATRICKBOT
 int motorPin = 12;
 #else
 int motorPin = 13; // Leonardo doesn't support PWM on pin 12, but LED is 13!!!
 #endif
 
 
+#ifdef PATRICKBOT
+const byte buttonPin = 9; // not hooked up
+#else
 const byte buttonPin = 12;
+#endif
 
 #define NUM_SONARS 3
 SonarRanging *ranger;
@@ -434,7 +438,7 @@ void setup()
     delay(1000);
   }
 
-  nh.loginfo("Spongebot Getting Parameters 2");
+  nh.loginfo("Getting Parameters");
 
   // Wired up an input button from the ProtoShield
   pinMode(buttonPin, INPUT);
@@ -450,7 +454,6 @@ void setup()
   {
     nh.loginfo("Could not get calibrate");
   }
-  
   if (!nh.getParam("~wheelbase", &robotWheelbase))
   {
     nh.loginfo("Could not get wheelbase");

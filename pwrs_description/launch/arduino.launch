@@ -45,10 +45,10 @@ SOFTWARE.
 		<param name="~calibrate" type="int" value="0" />
 		<param name="~wheelbase" type="double" value="0.4318" />
 		<param name="~tread" type="double" value="0.0" />
-		<param name="~velocitySlope" type="double" value="1.3683" />
+		<param name="~velocitySlope" type="double" value="-1.3683" />
 		<!-- Default for a HITEC HS-785HB is 1050-1950 usec full travel -->
 		<param name="~steeringOffset" type="double" value="1500" /> <!-- usec of the middle point -->
-		<param name="~steeringSlope" type="double" value="1145.915829" /> <!-- usec/rad -->
+		<param name="~steeringSlope" type="double" value="-1145.915829" /> <!-- usec/rad -->
 		<param name="~steeringTravel" type="double" value="0.585398" /> <!-- radians -->
 	</node>
   </group>
