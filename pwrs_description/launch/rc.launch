@@ -24,20 +24,6 @@ SOFTWARE.
 -->
 
 <launch>
-
-  <arg name="model" default="$(env BOT_MODEL)" />
-
-  <group if="$(eval arg('model') == 'PATRICKBOT')">
-    <node pkg="joy" type="joy_node" name="joy" output="screen">
-        <param name="mappings" type="string" value="$(find pwrs_description)/launch/gamecontrollerdb.txt" />
-        <param name="deadzone" type="double" value="0.05" />
-    </node>
-    <node pkg="pwrs_controller" type="teleop_ackermann_node" name="joystick_node" output="screen">
-    </node>
-  </group>
-
-  <group unless="$(eval arg('model') == 'PATRICKBOT')">
-    <node pkg="pwrs_controller" type="joystick" name="joystick_node" output="screen">
-    </node>
-  </group>
+  <include file="$(find pwrs_description)/launch/arduino.launch" />
+  <include file="$(find pwrs_description)/launch/joystick.launch" />
 </launch>

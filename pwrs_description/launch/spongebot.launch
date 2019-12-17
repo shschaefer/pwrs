@@ -24,10 +24,29 @@ SOFTWARE.
 -->
 
 <launch>
-  <param name="exanpleParameter" value="1.0" />
+  <arg name="urdf_file" default="xacro $(find pwrs_description)/urdf/spongebot.urdf.xacro" />
+  <arg name="rviz_config" default="$(find pwrs_description)/launch/spongebot.rviz" />
+  <arg name="namespace" default="spongebot"/>
 
   <!-- Launch the following nodes: Arduino rosserial, core navigation, SLAM -->
   <include file="$(find pwrs_description)/launch/arduino.launch" />
   <include file="$(find pwrs_description)/launch/joystick.launch" />
+
+  <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher">
+     <param name="/use_gui" value="false"/>
+     <param name="/rate" value="20"/>
+	 <param name="/source_list/steering" value="true"/>
+	 <param name="/publish_default_positions" value="true"/>	 
+	 <param name="/publish_default_velocities" value="true"/>	 
+	 <param name="/publish_default_effort" value="true"/>	 
+  </node>
+
+  <!-- Nodes that publish joint state use the model exposed as robot_description -->
+  <param name="robot_description" command="$(arg urdf_file)" />  
+	<node name="robot_state_publisher" pkg="robot_state_publisher" type="state_publisher">
+      <param name="publish_frequency" type="double" value="20.0" />
+    </node>
+  <!-- Launch RViz for the sim -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(arg rviz_config)"  /> <!--ns="$(arg namespace)" / -->
 
 </launch>

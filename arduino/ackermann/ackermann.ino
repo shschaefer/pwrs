@@ -1,3 +1,4 @@
+  
 /*
 The MIT License (MIT)
 
@@ -40,6 +41,24 @@ SOFTWARE.
 #include <SonarRanging.h>
 #include <stdio.h>
 
+#define PATRICKBOT
+//#define SPONGEBOT
+
+#ifdef PATRICKBOT
+#define ADAFRUIT_10DOF_IMU
+#endif
+
+#ifdef ADAFRUIT_10DOF_IMU
+#include <Adafruit_Sensor_Set.h>
+#include <Adafruit_Simple_AHRS.h>
+#include <Madgwick.h>
+#include <Mahony.h>
+#include <Adafruit_LSM303_U.h>
+#include <Adafruit_Simple_AHRS.h>
+#include <Adafruit_L3GD20_U.h>
+#else
+#endif
+
 //
 // Compacted all calibration, teleoperation and other modes into
 // one single module.  This moves things like joystick control into
@@ -74,9 +93,18 @@ const byte servoPin = 11;
 float steeringAnglePhi = 0;
 
 MotorController *motorController;
+#ifdef PATRICKBOT
+int motorPin = 12;
+#else
 int motorPin = 13; // Leonardo doesn't support PWM on pin 12, but LED is 13!!!
+#endif
 
+
+#ifdef PATRICKBOT
+const byte buttonPin = 9; // not hooked up
+#else
 const byte buttonPin = 12;
+#endif
 
 #define NUM_SONARS 3
 SonarRanging *ranger;
@@ -103,20 +131,46 @@ float robotWheelbase = 0;
 //
 // Local variables
 //
-bool connected = false;
 int calibrationMode = false;
 ros::Time lastTime;
 char baseLink[] = "/base_link";
-char odomLink[] = "/odom";
-char imuLink[] = "/imu";
+char odomLink[] = "/odom_link";
+char imuLink[] = "/imu_link";
 float odomX = 0;
 float odomY = 0;
 float odomTheta = 0;
 
+#ifdef ADAFRUIT_10DOF_IMU
+Adafruit_LSM303_Accel_Unified accel(30301);
+Adafruit_LSM303_Mag_Unified   mag(30302);
+Adafruit_L3GD20_Unified       gyro(20);
+
+// Create simple AHRS algorithm using the above sensors.
+Adafruit_Simple_AHRS          ahrs(&accel, &mag);
+
+Madgwick filter;
+float mag_offsets[3]            = { 2.45F, -4.55F, -26.93F };
+
+float mag_softiron_matrix[3][3] = { {  0.961,  -0.001,  0.025 },
+                                    {  0.001,  0.886,  0.015 },
+                                    {  0.025,  0.015,  1.176 } };
+
+float mag_field_strength        = 44.12F;
+
+// Offsets applied to compensate for gyro zero-drift error for x/y/z
+// Raw values converted to rad/s based on 250dps sensitiviy (1 lsb = 0.00875 rad/s)
+float rawToDPS = 0.00875F;
+float dpsToRad = 0.017453293F;
+float gyro_zero_offsets[3]      = { 175.0F * rawToDPS * dpsToRad,
+                                   -729.0F * rawToDPS * dpsToRad,
+                                    101.0F * rawToDPS * dpsToRad };
+
+#endif
+
 
 void rosLog(char *logMessage)
 {
-  if (!connected)
+  if (!nh.connected())
   {
     Serial.println(*logMessage);
   }
@@ -216,6 +270,7 @@ void PublishJointStates(ros::Publisher publisher, ros::Time currentTime)
   publisher.publish(&jstate);
 }
 
+#ifndef ADAFRUIT_10DOF_IMU
 float readImuFloat()
 {
   // TODO: Make insensitive to lost bytes....
@@ -223,12 +278,62 @@ float readImuFloat()
   for (int i = 0; i<4; i++) fvalue.data[i] = Serial2.read();
   return fvalue.value;
 }
+#endif
 
 void ReadAndPublishInertialState(ros::Time currentTime)
 {
   inertial.header.stamp = currentTime;
   inertial.header.frame_id = imuLink;
 
+#ifdef ADAFRUIT_10DOF_IMU
+
+  sensors_event_t gyro_event = {0};
+  sensors_event_t accel_event = {0};
+  sensors_event_t mag_event = {0};
+
+  gyro.getEvent(&gyro_event);
+  accel.getEvent(&accel_event);
+  mag.getEvent(&mag_event);
+
+  // Apply mag offset compensation (base values in uTesla)
+  float x = mag_event.magnetic.x - mag_offsets[0];
+  float y = mag_event.magnetic.y - mag_offsets[1];
+  float z = mag_event.magnetic.z - mag_offsets[2];
+
+  // Apply mag soft iron error compensation
+  float mx = x * mag_softiron_matrix[0][0] + y * mag_softiron_matrix[0][1] + z * mag_softiron_matrix[0][2];
+  float my = x * mag_softiron_matrix[1][0] + y * mag_softiron_matrix[1][1] + z * mag_softiron_matrix[1][2];
+  float mz = x * mag_softiron_matrix[2][0] + y * mag_softiron_matrix[2][1] + z * mag_softiron_matrix[2][2];
+
+  // Apply gyro zero-rate error compensation
+  float gx = gyro_event.gyro.x - gyro_zero_offsets[0];
+  float gy = gyro_event.gyro.y - gyro_zero_offsets[1];
+  float gz = gyro_event.gyro.z - gyro_zero_offsets[2];
+
+  // The filter library expects gyro data in degrees/s, but adafruit sensor
+  // uses rad/s so we need to convert them first (or adapt the filter lib
+  // where they are being converted)
+  gx *= 57.2958F;
+  gy *= 57.2958F;
+  gz *= 57.2958F;
+
+  // Update the filter
+  filter.update(gx, gy, gz,
+                accel_event.acceleration.x, accel_event.acceleration.y, accel_event.acceleration.z,
+                mx, my, mz);
+
+  float qw, qx, qy, qz;
+  filter.getQuaternion(&inertial.orientation.w, &inertial.orientation.x, &inertial.orientation.y, &inertial.orientation.z);
+
+  inertial.linear_acceleration.x = accel_event.acceleration.x;
+  inertial.linear_acceleration.y = accel_event.acceleration.y;
+  inertial.linear_acceleration.z = accel_event.acceleration.z;
+
+  inertial.angular_velocity.x = gx;
+  inertial.angular_velocity.y = gy;
+  inertial.angular_velocity.z = gz;
+
+#else
   Serial2.write(DATA_REQUEST);
 
   // The first byte back should be an echo of the DATA_REQUEST
@@ -264,14 +369,13 @@ void ReadAndPublishInertialState(ros::Time currentTime)
   // Read the RESPONSE_END byte.
   // Not sure it matters if we test to make sure it is the right value.
   responseByte = Serial2.read();
+  #endif
 
   imuPublisher.publish(&inertial);
 }
 
-void reportOdometry()
+void reportOdometry(ros::Time currentTime)
 {
-  ros::Time currentTime = nh.now();
-
   // Compute odometry given the velocities of the robot
   float dt = currentTime.toSec() - lastTime.toSec();
   float vx, vy, vth;
@@ -289,13 +393,8 @@ void reportOdometry()
   nh.spinOnce();
 }
 
-void reportSensors()
+void reportSensors(ros::Time currentTime)
 {
-  ros::Time currentTime = nh.now();
-
-  // TODO: How to feedback state from EKF to update IMU estimates
-  ReadAndPublishInertialState(currentTime);
-
   // Take sonar readings
   ranger->Range();
 
@@ -321,22 +420,62 @@ void reportSensors()
 
 void setup()
 {
+  nh.getHardware()->setBaud(115200);
   nh.initNode();
+
+    // Initialize ROS pubs and subs
+  tfCaster.init(nh);
+  nh.advertise(logger);
+  nh.advertise(odomPublisher);
+  nh.advertise(steeringPublisher);
+  nh.advertise(imuPublisher);
+  nh.advertise(rangePublisher);
+  nh.subscribe(moveCommand);
+
+  while (!nh.connected())
+  {
+    nh.spinOnce();
+    delay(1000);
+  }
+
+  nh.loginfo("Getting Parameters");
 
   // Wired up an input button from the ProtoShield
   pinMode(buttonPin, INPUT);
+
+  nh.spinOnce();
 
   // Initialize calibration parameters
   float steeringOffset = 0;
   float steeringSlope = 0;
   float steeringTravel = 0;
   float velocitySlope = 0;
-  nh.getParam("/spongebot/calibrate", &calibrationMode);
-  nh.getParam("/spongebot/wheelbase", &robotWheelbase);
-  nh.getParam("/spongebot/velocitySlope", &velocitySlope);
-  nh.getParam("/spongebot/steeringOffset", &steeringOffset);
-  nh.getParam("/spongebot/steeringSlope", &steeringSlope);
-  nh.getParam("/spongebot/steeringTravel", &steeringTravel);
+  if (!nh.getParam("~calibrate", &calibrationMode, 1, 10000))
+  {
+    nh.loginfo("Could not get calibrate");
+  }
+  if (!nh.getParam("~wheelbase", &robotWheelbase))
+  {
+    nh.loginfo("Could not get wheelbase");
+  }
+  if (!nh.getParam("~velocitySlope", &velocitySlope))
+  {
+    nh.loginfo("Could not get velocitySlope");
+  }
+  if (!nh.getParam("~steeringOffset", &steeringOffset))
+  {
+    nh.loginfo("Could not get steeringOffset");
+  }
+  if (!nh.getParam("~steeringSlope", &steeringSlope))
+  {
+    nh.loginfo("Could not get steeringSlope");
+  }
+  if (!nh.getParam("~steeringTravel", &steeringTravel))
+  {
+    nh.loginfo("Could not get steeringTravel");
+  }
+  
+  nh.loginfo("Finished Getting Parameters");
 
   motorController = new MotorController(motorPin, velocitySlope);
 
@@ -349,42 +488,65 @@ void setup()
     ranger = new SonarRanging(&rosLog, sonarEnablePin, sonarPowerPin, NUM_SONARS, sonarPins);
     ranger->Initialize();
 
+#ifdef ADAFRUIT_10DOF_IMU
+    nh.loginfo("Initializing Adafruit IMU");
+    accel.begin();
+    mag.begin();
+    gyro.begin();
+    filter.begin(25);
+    nh.loginfo("Finished initializing Adafruit IMU");
+
+#else
     // Initialize the IMU - Serial2 is pin 16/17
     Serial2.begin(115200);
+    nh.loginfo("Started talking to Serial IMU");
+#endif
   }
 
-  // Initialize ROS pubs and subs
-  tfCaster.init(nh);
-  nh.advertise(logger);
-  nh.advertise(odomPublisher);
-  nh.advertise(steeringPublisher);
-  nh.advertise(imuPublisher);
-  nh.advertise(rangePublisher);
-  nh.subscribe(moveCommand);
-  nh.spinOnce();
-  
-  connected = true;
+  nh.loginfo("Finished Setup");
+
   lastTime = nh.now();
 }
 
+const uint32_t kOdometryPublishFrequency = 5; //hz
+const uint32_t kIMUPublishFrequency = 100; //hz
+const uint32_t kSensorPublishFrequency = 5; //hz
+
+const uint32_t kOdometryPublishMilliDelta = 1000 / kOdometryPublishFrequency; // milliseconds
+const uint32_t kIMUPublishMilliDelta = 1000 / kIMUPublishFrequency; //milliseconds
+const uint32_t kSensorPublishMilliDelta = 1000 / kSensorPublishFrequency; //milliseconds
+
 void loop()
 {
-  // We need a way to effectively spin and delay one cycle - say once per second
-  ros::Time currentTime;
-  do
-  {
-    nh.spinOnce();
-    delay(1);
-    currentTime = nh.now();
-  } while (currentTime.toSec() - lastTime.toSec() < 1.0);
-  
-  reportOdometry();
-  
-  if (!calibrationMode)
-    reportSensors();
-}
+  static uint32_t sOdometryLastPublishMilli = 0;
+  static uint32_t sIMULastPublishMilli = 0;
+  static uint32_t sSensorLastPublishMilli = 0;
 
-// Events from the IMU??
-//void serialEvent2(){
-//
-//}
+  uint32_t milliTime = millis();
+  ros::Time currentROSTime = nh.now();
+  
+
+  if (milliTime - sOdometryLastPublishMilli >= kOdometryPublishMilliDelta)
+  {
+    reportOdometry(currentROSTime);
+    sOdometryLastPublishMilli = milliTime;
+  }
+
+  if (milliTime - sIMULastPublishMilli >= kIMUPublishMilliDelta)
+  {
+    // TODO: How to feedback state from EKF to update IMU estimates
+    ReadAndPublishInertialState(currentROSTime);
+    sIMULastPublishMilli = milliTime;
+  }
+
+  if (milliTime - sSensorLastPublishMilli >= sSensorLastPublishMilli)
+  {
+    if (!calibrationMode)
+    {
+      reportSensors(currentROSTime);
+    }
+    sSensorLastPublishMilli = milliTime;
+  }
+
+  nh.spinOnce();
+}

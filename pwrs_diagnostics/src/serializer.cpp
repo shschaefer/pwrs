@@ -156,4 +156,6 @@ std::string DiagnosticsSerializer::GetStatusAsString(const diagnostic_msgs::Diag
   }
   
   status += " }";
+
+  return status;
 }

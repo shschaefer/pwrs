@@ -29,8 +29,15 @@ SOFTWARE.
 
 #include "ros/ros.h"
 #include "rosbag/bag.h"
+#include "diagnostic_msgs/DiagnosticStatus.h"
 #include "diagnostic_msgs/DiagnosticArray.h"
 #include "TelemetryClient.h"
+
+// Telemetry Client brings in Windows.h which overrides these.
+#undef OK
+#undef ERROR
+#undef WARN
+#undef STALE
 
 #include <locale>
 #include <codecvt>
@@ -64,13 +71,13 @@ class DiagnosticsSerializer
 
 inline std::string valToMsg(const int val)
 {
-  if (val == diagnostic_msgs::DiagnosticStatus::DIAG_OK)
+  if (val == diagnostic_msgs::DiagnosticStatus::OK)
     return "OK";
-  else if (val == diagnostic_msgs::DiagnosticStatus::DIAG_WARN)
+  else if (val == diagnostic_msgs::DiagnosticStatus::WARN)
     return "Warning";
-  else if (val == diagnostic_msgs::DiagnosticStatus::DIAG_ERROR)
+  else if (val == diagnostic_msgs::DiagnosticStatus::ERROR)
     return "Error";
-  else if (val == diagnostic_msgs::DiagnosticStatus::DIAG_STALE)
+  else if (val == diagnostic_msgs::DiagnosticStatus::STALE)
     return "Stale";
   
   ROS_ERROR("Attempting to convert diagnostic level %d into string. Values are: {0: \"OK\", 1: \"Warning\", 2: \"Error\", 3: \"Stale\"}", val);

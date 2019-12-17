@@ -3,6 +3,7 @@
 
 #ifdef WIN32
 #include <windows.h>
+#include <string>
 #endif
 #include <stdlib.h>
 #include <map>
