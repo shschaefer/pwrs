@@ -35,7 +35,7 @@ ServoSteering::ServoSteering(void (*logFunction)(String), int servoPin,
 
   servo = new Servo();
   servo->attach(servoPin);
-  servo->write(offset);
+  servo->writeMicroseconds(offset);
 }
 
 void ServoSteering::Steer(float steeringAngle, float steeringVelocity)
@@ -54,7 +54,7 @@ void ServoSteering::Steer(float steeringAngle, float steeringVelocity)
   }
 
   int newPosition = int(steeringAngle * steeringSlope) + offset;
-  servo->write(newPosition);
+  servo->writeMicroseconds(newPosition);
 
   // TODO: Update the current steering angle during the turn, control the profile
   steeringAnglePhi = steeringAngle;

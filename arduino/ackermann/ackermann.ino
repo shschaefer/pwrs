@@ -41,8 +41,8 @@ SOFTWARE.
 #include <SonarRanging.h>
 #include <stdio.h>
 
-#define PATRICKBOT
-//#define SPONGEBOT
+//#define PATRICKBOT
+#define SPONGEBOT
 
 #ifdef PATRICKBOT
 #define ADAFRUIT_10DOF_IMU
@@ -116,7 +116,7 @@ const byte sonarEnablePin = 5;
 
 // Simplified, Firmata-ish protocol with the IMU
 #define CALIBRATE         0xA0
-#define DATA_REQUEST      0xB0
+#define DATA_REQUEST      0x30
 #define RESPONSE_END      0xFF
 typedef union {
   float value;
@@ -338,6 +338,12 @@ void ReadAndPublishInertialState(ros::Time currentTime)
 
   // The first byte back should be an echo of the DATA_REQUEST
   int responseByte = Serial2.read();
+  if (responseByte == -1)
+  {
+    delay(10);
+    responseByte = Serial2.read();
+  }
+
   if (responseByte != DATA_REQUEST)
   {
     // TODO: Write a diagnostics message
@@ -349,7 +355,6 @@ void ReadAndPublishInertialState(ros::Time currentTime)
       responseByte = Serial2.read();
     }
 
-    // TODO: What do we do when the inertial data is no good?
     return;
   }
 
@@ -366,12 +371,16 @@ void ReadAndPublishInertialState(ros::Time currentTime)
   inertial.angular_velocity.y = readImuFloat();
   inertial.angular_velocity.z = readImuFloat();
 
-  // Read the RESPONSE_END byte.
-  // Not sure it matters if we test to make sure it is the right value.
-  responseByte = Serial2.read();
+  // Read up to the RESPONSE_END byte.
+  while (Serial2.available())
+  {
+    responseByte = Serial2.read();
+    if (responseByte == RESPONSE_END) break;
+  }
   #endif
 
   imuPublisher.publish(&inertial);
+  nh.spinOnce();
 }
 
 void reportOdometry(ros::Time currentTime)
@@ -423,7 +432,7 @@ void setup()
   nh.getHardware()->setBaud(115200);
   nh.initNode();
 
-    // Initialize ROS pubs and subs
+  // Initialize ROS pubs and subs
   tfCaster.init(nh);
   nh.advertise(logger);
   nh.advertise(odomPublisher);
@@ -450,6 +459,7 @@ void setup()
   float steeringSlope = 0;
   float steeringTravel = 0;
   float velocitySlope = 0;
+  int velocityOffset = 1500;
   if (!nh.getParam("~calibrate", &calibrationMode, 1, 10000))
   {
     nh.loginfo("Could not get calibrate");
@@ -459,6 +469,10 @@ void setup()
     nh.loginfo("Could not get wheelbase");
   }
   if (!nh.getParam("~velocitySlope", &velocitySlope))
+  {
+    nh.loginfo("Could not get velocitySlope");
+  }
+  if (!nh.getParam("~velocityOFfset", &velocityOffset))
   {
     nh.loginfo("Could not get velocitySlope");
   }
@@ -477,7 +491,7 @@ void setup()
   
   nh.loginfo("Finished Getting Parameters");
 
-  motorController = new MotorController(motorPin, velocitySlope);
+  motorController = new MotorController(motorPin, velocitySlope, velocityOffset);
 
   steering = new ServoSteering(&rosLog, servoPin, steeringSlope, steeringOffset, steeringTravel);
 

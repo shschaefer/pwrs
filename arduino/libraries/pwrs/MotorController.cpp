@@ -24,8 +24,8 @@ SOFTWARE.
 
 #include "MotorController.h"
 
-MotorController::MotorController(byte motorPin, float slope) :
-	velocitySlope(slope),
+MotorController::MotorController(byte motorPin, float slope, int offset) :
+	velocitySlope(slope), velocityOffset(offset)
 	currentSpeed(0.0)
 {
   // PWM Motor Driver - Talon SRX
@@ -34,15 +34,16 @@ MotorController::MotorController(byte motorPin, float slope) :
 
 void MotorController::SetMotorSpeed(float speed, float acceleration, float jerk)
 {
-  // Velocity in m/s.
-  // Convert to PWM duty cycle percentage -> vel = slope * duty_cycle (require zero crossing)
   // TODO: Ignore acceleration and jerk parameters for now.
-  float dutyCycle = speed / velocitySlope;
+  
   // TODO: Should this be clamped to [-1.0, 1.0]???
   currentSpeed = speed;
-  
+
+  // Velocity in m/s.
+  // Convert to PWM pulse rate
+  int PWMvalue = int(speed * velocitySlope) + velocityOffset; 
+
   // TODO: Consider braking vs. coasting scenarios
-  int PWMvalue = dutyCycle * 500 + 1500; //scale up to 1000-2000  
   rwd.writeMicroseconds(PWMvalue);
 }
 

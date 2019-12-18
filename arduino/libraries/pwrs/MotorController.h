@@ -31,13 +31,14 @@ SOFTWARE.
 class MotorController
 {
   public:
-    MotorController(byte motorPin, float slope);
+    MotorController(byte motorPin, float slope, int offset);
     void SetMotorSpeed(float speed, float acceleration, float jerk);
     float GetCurrentSpeed();
 	
   private:
     Servo rwd;
     float velocitySlope;
+    int velocityOffset;
     float currentSpeed;
 };
 

@@ -25,6 +25,13 @@ SOFTWARE.
 /* Code derived from "MPU9250 Basic Example Code" by Kris Winer (Beerware license) */
 /* Leveraging Kris Winer's MPU9250 libraries as adapted by SparkFun for the Arduino */
 
+// We have wired the MPU9250 to an Arduino Pro Mini (3v3) running filtering and integration.
+// Then expose a connector which adds two pins to the standard output connector,
+// passing serial commands through a Bi-directional level converter to the Mega (5V).
+// BLK,  NC, GND, CTS, VCC,  RX,  TX, RST, NC, YYY
+// HV,   NC, GND,  NC, 3v3, LV3, LV2,  NC, NC, LV1
+// 5VIN, NC, GND,  NC,  NC, HV3, HV2,  NC, NC, HV1
+
 #include "MPU9250.h"
 
 #define TESTING_MODE 0
@@ -37,7 +44,7 @@ MPU9250 myIMU;
 
 // Simplified, Firmata-ish protocol
 #define CALIBRATE         0xA0
-#define DATA_REQUEST      0xB0
+#define DATA_REQUEST      0x30
 #define RESPONSE_END      0xFF
 #define MAX_DATA_BYTES 4
 byte commandData[MAX_DATA_BYTES];
@@ -192,9 +199,9 @@ void serialEvent()
         myIMU.setYawCalibration(yaw->value);
       
         // Send the initialization state
-        Serial.write(CALIBRATE);
+        Serial.write((byte)CALIBRATE);
         Serial.write(initialized);
-        Serial.write(RESPONSE_END);
+        Serial.write((byte)RESPONSE_END);
         waiting = 0;
       }
       else
@@ -204,7 +211,7 @@ void serialEvent()
     case DATA_REQUEST:
       float headingQuaternion[4];
       myIMU.getCurrentOrientation(headingQuaternion);
-      Serial.write(DATA_REQUEST);
+      Serial.write((byte)DATA_REQUEST);
       for(int i=0; i<4; i++)
       {
         writeFloat(headingQuaternion[i]);
@@ -215,7 +222,7 @@ void serialEvent()
       writeFloat(myIMU.gx);
       writeFloat(myIMU.gy);
       writeFloat(myIMU.gz);
-      Serial.write(RESPONSE_END);
+      Serial.write((byte)RESPONSE_END);
       command = 0;
       return;
 

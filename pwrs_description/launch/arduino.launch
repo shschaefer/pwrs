@@ -45,6 +45,7 @@ SOFTWARE.
 		<param name="~calibrate" type="int" value="0" />
 		<param name="~wheelbase" type="double" value="0.4318" />
 		<param name="~tread" type="double" value="0.0" />
+		<param name="~velocityZeroOffset" type="int" value="1500" /> <!-- usec of idle point -->
 		<param name="~velocitySlope" type="double" value="-1.3683" />
 		<!-- Default for a HITEC HS-785HB is 1050-1950 usec full travel -->
 		<param name="~steeringOffset" type="double" value="1500" /> <!-- usec of the middle point -->
@@ -55,20 +56,21 @@ SOFTWARE.
 
   <group unless="$(eval arg('model') == 'PATRICKBOT')">
 	<node pkg="rosserial_python" type="serial_node.py" name="serial_node" output="screen">
-		<param name="~port" value="COM4" />
+		<param name="~port" value="COM7" />
 		<param name="~baud" value="115200"/>
 		<!-- SpongeBot node parameters -->
 		<!-- TODO: Move to a yaml config file -->
 		<param name="model" type="string" value="SpongeBot" />
-		<param name="calibrate" type="int" value="0" />
-		<param name="wheelbase" type="double" value="0.4318" />
-		<param name="tread" type="double" value="0.0" />
-		<param name="velocitySlope" type="double" value="1.3683" />
+		<param name="~calibrate" type="int" value="0" />
+		<param name="~wheelbase" type="double" value="0.4318" />
+		<param name="~tread" type="double" value="0.0" />
+		<param name="~velocityZeroOffset" type="int" value="1500" /> <!-- usec of idle point -->
+		<param name="~velocitySlope" type="double" value="-684.15" /> <!-- usec / m/s -->
 		<!-- Default for a HITEC HS-785HB is 1050-1950 usec full travel -->
-		<param name="steeringOffset" type="double" value="1500" /> <!-- usec of the middle point -->
-		<param name="steeringSlope" type="double" value="1145.915829" /> <!-- usec/rad -->
-		<param name="steeringTravel" type="double" value="0.785398" /> <!-- radians -->
-		<param name="yawDeclinationAdjust" type="double" value="-0.276286" />
+		<param name="~steeringOffset" type="double" value="1475" /> <!-- usec of the middle point -->
+		<param name="~steeringSlope" type="double" value="1145.915829" /> <!-- usec/rad -->
+		<param name="~steeringTravel" type="double" value="0.20944" /> <!-- radians -->
+		<param name="~yawDeclinationAdjust" type="double" value="-0.276286" />
 	</node>
   </group>
 
